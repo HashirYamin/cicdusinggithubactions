@@ -8,24 +8,55 @@ on:
       - main
       - master
       - develop
+
 name: "Build & Release"
+
 jobs:
   build:
     name: Build & Release
     runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      # Step 1: Checkout repo
+      - uses: actions/checkout@v4
+
+      # Step 2: Setup Java (use JDK 17)
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '21'
-      - uses: subosito/flutter-action@v2
+          java-version: '17'
+        env:
+          JAVA_TOOL_OPTIONS: "--enable-native-access=ALL-UNNAMED"
+
+      # Step 3: Setup Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           architecture: x64
 
-      - run: flutter build apk --release --split-per-abi
-      - run: |
+      # Step 4: Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Step 5: Clean project
+      - name: Clean project
+        run: |
+          flutter clean
+          rm -rf ~/.gradle
+
+      # Step 6: Get dependencies
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Step 7: Build release APK
+      - name: Build Release APK
+        run: flutter build apk --release --no-shrink
+
+      # Step 8: Build iOS app
+      - name: Build iOS app
+        run: |
           flutter build ios --no-codesign
           cd build/ios/iphoneos
           mkdir Payload
@@ -33,17 +64,11 @@ jobs:
           ln -s ../Runner.app
           cd ..
           zip -r app.ipa Payload
+
+      # Step 9: Push to Releases
       - name: Push to Releases
         uses: ncipollo/release-action@v1
         with:
           artifacts: "build/app/outputs/apk/release/*,build/ios/iphoneos/app.ipa"
           tag: v1.0.${{ github.run_number }}
           token: ${{ secrets.TOKEN }}
-
-
-
-
-
-
-# push to master, main, develop
-# pull request on main master
